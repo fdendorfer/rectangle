@@ -112,6 +112,8 @@ copy_settings() {
 
     # Never let a test build add itself to login items.
     defaults write "$DEV_DOMAIN" launchOnLogin -bool false
+    # The real app's icon may well be hidden, but a test build needs a way in.
+    defaults write "$DEV_DOMAIN" hideMenubarIcon -bool false
     # Sparkle would happily replace this ad-hoc build with the official release.
     defaults write "$DEV_DOMAIN" SUEnableAutomaticChecks -bool false
     defaults write "$DEV_DOMAIN" SUAutomaticallyUpdate -bool false
