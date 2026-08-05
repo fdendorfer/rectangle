@@ -28,6 +28,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var stackBadgeManager: StackBadgeManager!
     private var titleBarManager: TitleBarManager!
     private var greenButtonManager: GreenButtonManager!
+    private var displayChangeManager: DisplayChangeManager!
     
     private var prefsWindowController: NSWindowController?
     
@@ -157,6 +158,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.stackBadgeManager = StackBadgeManager()
         self.titleBarManager = TitleBarManager()
         self.greenButtonManager = GreenButtonManager()
+        self.displayChangeManager = DisplayChangeManager(windowManager: windowManager)
         self.initializeTodo()
         checkForProblematicApps()
         MacTilingDefaults.checkForBuiltInTiling(skipIfAlreadyNotified: true)

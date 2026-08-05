@@ -84,6 +84,11 @@ extension ExecutionSource {
             return true
         case .menuItem, .url, .titleBar:
             return false
+        // A display change re-applies actions for many windows in one pass, so
+        // letting each one resize its neighbours would have them fight over the
+        // same screen area.
+        case .displayChange:
+            return false
         }
     }
 }

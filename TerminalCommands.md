@@ -38,6 +38,8 @@ The preferences window is purposefully slim, but there's a lot that can be modif
 - [Keep window size when moving a maximized window to another display](#keep-window-size-when-moving-a-maximized-window-to-another-display)
 - [Offset cycling position when overlapping another window](#offset-cycling-position-when-overlapping-another-window)
 - [Move windows that can't fill the snap area to the edge](#move-windows-that-cant-fill-the-snap-area-to-the-edge)
+- [Re-apply the last action when a display is connected or disconnected](#re-apply-the-last-action-when-a-display-is-connected-or-disconnected)
+- [Restore window positions when a display is reconnected](#restore-window-positions-when-a-display-is-reconnected)
 
 ## Keyboard Shortcuts
 
@@ -572,3 +574,41 @@ defaults write com.knollsoft.Rectangle moveFixedSizeToEdge -int 1  # align edges
 defaults write com.knollsoft.Rectangle moveFixedSizeToEdge -int 2  # align corners only, center halves/sides
 defaults write com.knollsoft.Rectangle moveFixedSizeToEdge -int 3  # center within the snap area
 ```
+
+## Re-apply the last action when a display is connected or disconnected
+
+When a display goes away, macOS moves its windows onto the remaining displays by clamping their frames to whatever room is left. A window that was maximized comes back as an arbitrary rectangle, because "maximized" was only ever a frame — there is no state for the OS to re-apply.
+
+With this enabled, Rectangle waits for the new display arrangement to settle and then re-runs the last action it performed on each window, on whichever display the window ended up on. A window that was maximized is maximized again, a left half is a left half again, and so on.
+
+```bash
+defaults write com.knollsoft.Rectangle reapplyActionOnDisplayChange -int 1
+```
+
+Only actions that are a pure function of the target screen are re-applied: maximize, almost maximize, maximize height, center, and the halves, thirds, fourths, sixths, eighths, ninths and corners. Actions that are relative to the window's current frame (make larger, move left) or to the set of displays (next display) are left alone, as are the multi-window actions (tile all, cascade all).
+
+This only covers windows that Rectangle positioned in the current session, since that's the extent of what it knows about. For windows you positioned by hand, see the next command.
+
+## Restore window positions when a display is reconnected
+
+Remembers where every window was, per display configuration, and puts them back when that configuration returns. Unplug your external display and plug it back in, and windows return to the positions and sizes they had before, on the display they were on.
+
+```bash
+defaults write com.knollsoft.Rectangle restoreLayoutOnDisplayChange -int 1
+```
+
+A configuration is identified by which displays are connected (from their EDID vendor/model/serial, so a reconnect is recognized as the same monitor), their resolutions, and their arrangement. Rearranging displays in System Settings is therefore a different configuration rather than a reason to move windows onto the wrong monitor. Up to 12 configurations are remembered, least recently used first out.
+
+Because macOS has already moved the windows by the time an app can hear about the display change, remembered positions have to be captured continuously rather than at the moment of the change. Rectangle scans window positions every 5 seconds while this is enabled; the interval can be changed (in milliseconds), at the cost of accuracy or of more frequent scanning:
+
+```bash
+defaults write com.knollsoft.Rectangle displayLayoutCaptureInterval -int 10000
+```
+
+Windows that were minimized, hidden, or full screen when the display changed are not restored, and neither are apps in the ignore list used for drag snapping. Restoring happens 1.5 seconds after the display arrangement stops changing, which is enough for most setups. If your displays take longer to settle, or if you see windows land in the wrong place, raise the delay (in milliseconds):
+
+```bash
+defaults write com.knollsoft.Rectangle displayChangeSettleDelay -int 3000
+```
+
+Both of these commands can be enabled at the same time. Remembered positions take precedence, and re-applying the last action then covers the windows the layout store didn't have an entry for.
