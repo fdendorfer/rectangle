@@ -93,6 +93,64 @@ class WindowLayoutMatchingTests: XCTestCase {
     }
 }
 
+class WindowFillingDisplayTests: XCTestCase {
+
+    private let laptop = CGRect(x: 0, y: 38, width: 1512, height: 944)
+    private let external = CGRect(x: 1512, y: 0, width: 3440, height: 1415)
+
+    private func snapshot(_ windowId: CGWindowID, frame: CGRect) -> WindowSnapshot {
+        WindowSnapshot(bundleId: "com.apple.Safari", windowId: windowId, title: nil, index: 0, frame: frame)
+    }
+
+    func testExactFillIsDetectedOnEveryDisplay() {
+        let result = WindowLayoutStore.windowIdsFillingDisplay(
+            snapshots: [snapshot(1, frame: laptop), snapshot(2, frame: external)],
+            screens: [laptop, external],
+            tolerance: 8)
+
+        XCTAssertEqual(result, Set([1, 2]))
+    }
+
+    func testNearFillWithinToleranceIsDetected() {
+        let inset = external.insetBy(dx: 4, dy: 4)
+        let result = WindowLayoutStore.windowIdsFillingDisplay(
+            snapshots: [snapshot(1, frame: inset)], screens: [laptop, external], tolerance: 8)
+
+        XCTAssertEqual(result, Set([1]))
+    }
+
+    func testGapSizedInsetNeedsTheWiderTolerance() {
+        let gapped = external.insetBy(dx: 10, dy: 10)
+
+        XCTAssertTrue(WindowLayoutStore.windowIdsFillingDisplay(
+            snapshots: [snapshot(1, frame: gapped)], screens: [external], tolerance: 18).contains(1))
+        XCTAssertFalse(WindowLayoutStore.windowIdsFillingDisplay(
+            snapshots: [snapshot(1, frame: gapped)], screens: [external], tolerance: 8).contains(1))
+    }
+
+    func testHalfAndAlmostMaximizedWindowsAreNotFilling() {
+        var half = external
+        half.size.width /= 2
+        let almost = external.insetBy(dx: external.width * 0.05, dy: external.height * 0.05)
+
+        let result = WindowLayoutStore.windowIdsFillingDisplay(
+            snapshots: [snapshot(1, frame: half), snapshot(2, frame: almost)],
+            screens: [laptop, external],
+            tolerance: 8)
+
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testWindowFillingNoDisplayAtAllIsNotDetected() {
+        let result = WindowLayoutStore.windowIdsFillingDisplay(
+            snapshots: [snapshot(1, frame: CGRect(x: 200, y: 200, width: 800, height: 600))],
+            screens: [laptop, external],
+            tolerance: 8)
+
+        XCTAssertTrue(result.isEmpty)
+    }
+}
+
 class ReapplyOnDisplayChangeTests: XCTestCase {
 
     func testScreenRelativeActionsAreReapplied() {

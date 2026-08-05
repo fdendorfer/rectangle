@@ -24,6 +24,12 @@ struct StoredLayout: Codable {
     /// full, so configurations that are never plugged in again don't grow the
     /// defaults forever.
     var updatedAt: Date
+    /// The usable area of each display at capture time, in accessibility
+    /// coordinates. Needed to answer "was this window filling its display?"
+    /// about a configuration that is no longer connected.
+    ///
+    /// Optional so that layouts written before this existed still decode.
+    var screens: [CGRect]?
 }
 
 /// What a saved window is matched against. Kept separate from the accessibility
@@ -115,7 +121,7 @@ class WindowLayoutStore {
 
     // MARK: - Capture
 
-    func capture(signature: String, windows: [LiveWindow]) {
+    func capture(signature: String, windows: [LiveWindow], screens: [CGRect]) {
         let snapshots = windows.compactMap { window -> WindowSnapshot? in
             guard let windowId = window.identity.windowId else { return nil }
             return WindowSnapshot(bundleId: window.identity.bundleId,
@@ -129,7 +135,7 @@ class WindowLayoutStore {
         // nothing would be unrecoverable.
         guard !snapshots.isEmpty else { return }
 
-        layouts[signature] = StoredLayout(windows: snapshots, updatedAt: Date())
+        layouts[signature] = StoredLayout(windows: snapshots, updatedAt: Date(), screens: screens)
         evictIfNeeded()
         save()
     }
@@ -195,6 +201,41 @@ class WindowLayoutStore {
             return identity.index == snapshot.index
         }
 
+        return result
+    }
+
+    // MARK: - Windows that were filling their display
+
+    /// Windows that, under the given configuration, were filling the display
+    /// they were on.
+    ///
+    /// This is how a maximized window is recognized when Rectangle didn't
+    /// maximize it - the green button, a window that was already maximized
+    /// before Rectangle started, or an app that maximizes itself. There is no
+    /// "maximized" state to read on macOS outside of native full screen, so
+    /// filling the usable area of a display is the only available evidence.
+    ///
+    /// Returns nothing for layouts captured before display frames were
+    /// recorded: without them the question can't be answered, and guessing
+    /// would move windows the user never maximized.
+    func windowIdsFillingTheirDisplay(in signature: String, tolerance: CGFloat) -> Set<CGWindowID> {
+        guard let layout = layouts[signature], let screens = layout.screens else { return [] }
+        return Self.windowIdsFillingDisplay(snapshots: layout.windows, screens: screens, tolerance: tolerance)
+    }
+
+    static func windowIdsFillingDisplay(snapshots: [WindowSnapshot],
+                                        screens: [CGRect],
+                                        tolerance: CGFloat) -> Set<CGWindowID> {
+        var result = Set<CGWindowID>()
+        for snapshot in snapshots {
+            let fills = screens.contains { screen in
+                abs(snapshot.frame.minX - screen.minX) <= tolerance
+                    && abs(snapshot.frame.minY - screen.minY) <= tolerance
+                    && abs(snapshot.frame.maxX - screen.maxX) <= tolerance
+                    && abs(snapshot.frame.maxY - screen.maxY) <= tolerance
+            }
+            if fills { result.insert(snapshot.windowId) }
+        }
         return result
     }
 

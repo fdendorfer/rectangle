@@ -29,6 +29,9 @@ class DisplayChangeManager {
     /// Extra quiet time after a settle pass before captures resume, so the
     /// frames that get remembered are the restored ones.
     private static let postRestoreQuietPeriod: TimeInterval = 2
+    /// How far a window's edges may sit from its display's edges and still count
+    /// as filling it. Covers rounding and the few points some apps leave.
+    private static let fillTolerance: CGFloat = 8
 
     private let store = WindowLayoutStore()
     private let screenDetection = ScreenDetection()
@@ -104,31 +107,50 @@ class DisplayChangeManager {
         }
     }
 
+    /// Runs the passes in order of increasing authority, because each one
+    /// overwrites what the previous one did:
+    ///
+    /// 1. The remembered layout decides which display each window belongs on
+    ///    and puts it at the frame it had there. This is the only pass that
+    ///    knows about displays that macOS didn't move the window back to.
+    /// 2. Re-applying the last action refines that placement on whichever
+    ///    display the window ended up on. A frame captured every few seconds is
+    ///    weaker evidence of intent than an action the user asked for, so this
+    ///    pass runs second and wins - and because it acts on the window's
+    ///    current screen, it composes with the placement rather than fighting it.
     private func settled(signature: String) {
         let previousSignature = currentSignature
         currentSignature = signature
 
+        let windows = store.liveWindows()
         var restoredWindowIds = Set<CGWindowID>()
+
         if restoresLayout {
-            restoredWindowIds = restoreLayout(signature: signature)
-        }
-        if reappliesActions {
-            reapplyLastActions(skipping: restoredWindowIds)
+            restoredWindowIds = restoreLayout(signature: signature, windows: windows)
         }
 
         if Logger.logging {
             Logger.log("Display change settled: \(NSScreen.screens.count) screen(s), "
                        + "restored \(restoredWindowIds.count) window(s), "
-                       + "known layout: \(store.hasLayout(for: signature)), "
-                       + "previous config: \(previousSignature.isEmpty ? "none" : previousSignature)")
+                       + "known layout: \(store.hasLayout(for: signature))")
+        }
+
+        // Scheduled after the restore retry pass rather than run inline, so the
+        // retry can't undo it.
+        let reapplyDelay = reappliesActions ? Self.restoreRetryDelay * 1.5 : 0
+        if reappliesActions {
+            DispatchQueue.main.asyncAfter(deadline: .now() + reapplyDelay) { [weak self] in
+                self?.reapplyActions(windows: windows, leavingConfig: previousSignature)
+            }
         }
 
         // Remember the settled arrangement right away rather than waiting for
         // the next tick, so a quick unplug/replug cycle has something to use.
-        // Captures stay suspended until the restore retry pass has run, so what
-        // gets remembered is the restored layout rather than an intermediate one.
-        captureSuspendedUntil = ProcessInfo.processInfo.systemUptime + Self.restoreRetryDelay * 2
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.restoreRetryDelay * 2) { [weak self] in
+        // Captures stay suspended until every pass has run, so what gets
+        // remembered is the final layout rather than an intermediate one.
+        let captureDelay = reapplyDelay + Self.restoreRetryDelay
+        captureSuspendedUntil = ProcessInfo.processInfo.systemUptime + captureDelay
+        DispatchQueue.main.asyncAfter(deadline: .now() + captureDelay) { [weak self] in
             guard let self else { return }
             self.captureSuspendedUntil = 0
             self.captureNow()
@@ -137,8 +159,7 @@ class DisplayChangeManager {
 
     // MARK: - Restoring remembered frames
 
-    private func restoreLayout(signature: String) -> Set<CGWindowID> {
-        let windows = store.liveWindows()
+    private func restoreLayout(signature: String, windows: [LiveWindow]) -> Set<CGWindowID> {
         let matches = store.matches(for: signature, windows: windows)
 
         if Logger.logging {
@@ -190,41 +211,60 @@ class DisplayChangeManager {
 
     // MARK: - Re-running the last action
 
-    private func reapplyLastActions(skipping restoredWindowIds: Set<CGWindowID>) {
+    private func reapplyActions(windows: [LiveWindow], leavingConfig: String) {
         // Snapshotted up front: executing an action clears the history entry of
         // any window whose frame no longer matches what Rectangle last set,
         // which after a display change is every one of them.
         let lastActions = AppDelegate.windowHistory.lastRectangleActions
 
-        for (windowId, lastAction) in lastActions {
-            guard !restoredWindowIds.contains(windowId),
-                  lastAction.action.reapplicableOnDisplayChange,
-                  !AccessibilityElement.isDerivedWindowId(windowId),
-                  let element = AccessibilityElement.getWindowElement(windowId)
-            else { continue }
+        // Windows that filled their display before the change but that
+        // Rectangle never positioned - maximized with the green button, or
+        // already maximized when Rectangle started. Gaps inset a maximized
+        // window from the screen edges, so they widen the tolerance.
+        let wasFillingDisplay = store.windowIdsFillingTheirDisplay(
+            in: leavingConfig,
+            tolerance: Self.fillTolerance + CGFloat(Defaults.gapSize.value))
 
-            element.setMessagingTimeout(0.5)
+        var reapplied = 0
+        for window in windows {
+            guard let windowId = window.identity.windowId else { continue }
 
-            guard element.isSheet != true,
-                  element.isMinimized != true,
+            let action: WindowAction
+            if let lastAction = lastActions[windowId], lastAction.action.reapplicableOnDisplayChange {
+                action = lastAction.action
+            } else if wasFillingDisplay.contains(windowId) {
+                action = .maximize
+            } else {
+                continue
+            }
+
+            let element = window.element
+            guard element.isMinimized != true,
                   element.isHidden != true,
                   element.isFullScreen != true,
                   !element.frame.isNull,
                   let screen = screenDetection.detectScreens(using: element)?.currentScreen
             else { continue }
 
-            // The screen is passed explicitly: the window is wherever macOS
-            // dropped it, which is neither the cursor's screen nor - with
-            // cursor screen detection enabled - what execute() would pick.
+            // The screen is passed explicitly: the window is wherever the
+            // restore pass or macOS put it, which is neither the cursor's
+            // screen nor - with cursor screen detection enabled - what
+            // execute() would pick on its own.
             //
             // updateRestoreRect is off so the frame macOS improvised doesn't
             // become the frame unsnap restore returns the window to.
-            windowManager.execute(ExecutionParameters(lastAction.action,
+            windowManager.execute(ExecutionParameters(action,
                                                      updateRestoreRect: false,
                                                      screen: screen,
                                                      windowElement: element,
                                                      windowId: windowId,
                                                      source: .displayChange))
+            reapplied += 1
+        }
+
+        if Logger.logging {
+            Logger.log("Display change re-applied \(reapplied) action(s), "
+                       + "\(wasFillingDisplay.count) window(s) were filling a display beforehand")
         }
     }
 
@@ -256,15 +296,20 @@ class DisplayChangeManager {
         // either configuration.
         guard signature == currentSignature else { return }
 
+        // Screen frames are recorded alongside the windows so that a later
+        // change can tell which windows were filling a display that by then is
+        // no longer connected.
+        let screens = NSScreen.screens.map { $0.adjustedVisibleFrame().screenFlipped }
+
         guard Logger.logging else {
-            store.capture(signature: signature, windows: store.liveWindows())
+            store.capture(signature: signature, windows: store.liveWindows(), screens: screens)
             return
         }
         // The scan walks every window of every app over the accessibility API,
         // so its cost is worth being able to see when this is turned on.
         let start = ProcessInfo.processInfo.systemUptime
         let windows = store.liveWindows()
-        store.capture(signature: signature, windows: windows)
+        store.capture(signature: signature, windows: windows, screens: screens)
         let elapsed = (ProcessInfo.processInfo.systemUptime - start) * 1000
         Logger.log("Captured \(windows.count) window position(s) in \(Int(elapsed))ms")
     }

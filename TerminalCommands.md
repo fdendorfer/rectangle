@@ -587,7 +587,7 @@ defaults write com.knollsoft.Rectangle reapplyActionOnDisplayChange -int 1
 
 Only actions that are a pure function of the target screen are re-applied: maximize, almost maximize, maximize height, center, and the halves, thirds, fourths, sixths, eighths, ninths and corners. Actions that are relative to the window's current frame (make larger, move left) or to the set of displays (next display) are left alone, as are the multi-window actions (tile all, cascade all).
 
-This only covers windows that Rectangle positioned in the current session, since that's the extent of what it knows about. For windows you positioned by hand, see the next command.
+On its own, this covers windows that Rectangle positioned in the current session, since that's the extent of what it knows about. With `restoreLayoutOnDisplayChange` (below) also enabled, it additionally re-maximizes windows that were filling a display before the change but that Rectangle never positioned — maximized with the green button, or already maximized when Rectangle started. That works because the layout store is what records where windows were beforehand; macOS has no "maximized" state to read outside of native full screen.
 
 ## Restore window positions when a display is reconnected
 
@@ -611,4 +611,4 @@ Windows that were minimized, hidden, or full screen when the display changed are
 defaults write com.knollsoft.Rectangle displayChangeSettleDelay -int 3000
 ```
 
-Both of these commands can be enabled at the same time. Remembered positions take precedence, and re-applying the last action then covers the windows the layout store didn't have an entry for.
+Both of these commands are worth enabling together, and they compose in a specific order. The remembered layout runs first and decides which display each window belongs on — it is the only part that can bring a window back to a display macOS didn't move it to. Re-applying the last action then runs on whichever display the window ended up on, and wins where the two disagree: a frame captured every few seconds is weaker evidence of what you wanted than an action you asked for. So a window you had maximized comes back maximized for the display it lands on, rather than at whatever size it happened to have there previously.
