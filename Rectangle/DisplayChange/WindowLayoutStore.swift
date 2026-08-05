@@ -228,11 +228,8 @@ class WindowLayoutStore {
                                         tolerance: CGFloat) -> Set<CGWindowID> {
         var result = Set<CGWindowID>()
         for snapshot in snapshots {
-            let fills = screens.contains { screen in
-                abs(snapshot.frame.minX - screen.minX) <= tolerance
-                    && abs(snapshot.frame.minY - screen.minY) <= tolerance
-                    && abs(snapshot.frame.maxX - screen.maxX) <= tolerance
-                    && abs(snapshot.frame.maxY - screen.maxY) <= tolerance
+            let fills = screens.contains {
+                frameFillsScreen(snapshot.frame, visibleFrameOfScreen: $0, tolerance: tolerance)
             }
             if fills { result.insert(snapshot.windowId) }
         }

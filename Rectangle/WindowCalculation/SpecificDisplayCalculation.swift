@@ -40,6 +40,14 @@ class SpecificDisplayCalculation: WindowCalculation {
             }
         }
 
+        // As with next/previous display: a window that fills its display was
+        // maximized by someone, whether or not Rectangle has a record of it, and
+        // sending it to another display shouldn't un-maximize it.
+        if !Defaults.autoMaximize.userDisabled, params.windowFillsCurrentScreen {
+            let rectResult = WindowCalculationFactory.maximizeCalculation.calculateRect(rectParams)
+            return WindowCalculationResult(rect: rectResult.rect, screen: targetScreen, resultingAction: .maximize)
+        }
+
         let rectResult = calculateRect(rectParams)
         let resultingAction: WindowAction = rectResult.resultingAction ?? params.action
         return WindowCalculationResult(rect: rectResult.rect, screen: targetScreen, resultingAction: resultingAction)

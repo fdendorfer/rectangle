@@ -72,6 +72,16 @@ class DisplayChangeManager {
         ) { [weak self] _ in
             self?.startCaptureTimer()
         }
+        // Toggled from settings: the capture timer has to start or stop without
+        // waiting for a relaunch, and a freshly enabled store needs something in
+        // it before the next display change rather than after.
+        NotificationCenter.default.addObserver(
+            forName: .displayChangeRestore,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.startCaptureTimer()
+            self?.captureNow()
+        }
 
         startCaptureTimer()
     }

@@ -525,7 +525,7 @@ defaults write com.knollsoft.Rectangle screensOrderedByX -int 1
 
 ## Keep window size when moving a maximized window to another display
 
-By default, moving a maximized window to the next or previous display re-maximizes it to fill the destination display. Disable this to keep the window's size and center it on the destination display instead (so a window maximized on a smaller display won't grow to fill a larger one). This can also be toggled from Settings via the "Maximize window when moved to another display" checkbox.
+By default, moving a maximized window to the next or previous display re-maximizes it to fill the destination display. This applies whether Rectangle maximized the window or not: a window that fills its display's usable area is treated as maximized, so one you maximized with the green button survives the move too. Disable this to keep the window's size and center it on the destination display instead (so a window maximized on a smaller display won't grow to fill a larger one). This can also be toggled from Settings via the "Maximize window when moved to another display" checkbox.
 
 ```bash
 defaults write com.knollsoft.Rectangle autoMaximize -int 2
@@ -580,6 +580,8 @@ defaults write com.knollsoft.Rectangle moveFixedSizeToEdge -int 3  # center with
 When a display goes away, macOS moves its windows onto the remaining displays by clamping their frames to whatever room is left. A window that was maximized comes back as an arbitrary rectangle, because "maximized" was only ever a frame — there is no state for the OS to re-apply.
 
 With this enabled, Rectangle waits for the new display arrangement to settle and then re-runs the last action it performed on each window, on whichever display the window ended up on. A window that was maximized is maximized again, a left half is a left half again, and so on.
+
+Both this and `restoreLayoutOnDisplayChange` (below) are covered by the "Restore window positions when displays change" checkbox in Settings, which turns them on together. The terminal commands are for enabling them separately.
 
 ```bash
 defaults write com.knollsoft.Rectangle reapplyActionOnDisplayChange -int 1
