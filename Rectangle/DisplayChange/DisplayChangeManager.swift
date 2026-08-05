@@ -138,7 +138,14 @@ class DisplayChangeManager {
     // MARK: - Restoring remembered frames
 
     private func restoreLayout(signature: String) -> Set<CGWindowID> {
-        let matches = store.matches(for: signature, windows: store.liveWindows())
+        let windows = store.liveWindows()
+        let matches = store.matches(for: signature, windows: windows)
+
+        if Logger.logging {
+            Logger.log("Display change restore: matched \(matches.count) of \(windows.count) live window(s) "
+                       + "against \(store.windowCount(for: signature)) remembered")
+        }
+
         guard !matches.isEmpty else { return [] }
 
         var restoredWindowIds = Set<CGWindowID>()
@@ -248,7 +255,18 @@ class DisplayChangeManager {
         // Mid-change: whatever the windows look like now says nothing about
         // either configuration.
         guard signature == currentSignature else { return }
-        store.capture(signature: signature, windows: store.liveWindows())
+
+        guard Logger.logging else {
+            store.capture(signature: signature, windows: store.liveWindows())
+            return
+        }
+        // The scan walks every window of every app over the accessibility API,
+        // so its cost is worth being able to see when this is turned on.
+        let start = ProcessInfo.processInfo.systemUptime
+        let windows = store.liveWindows()
+        store.capture(signature: signature, windows: windows)
+        let elapsed = (ProcessInfo.processInfo.systemUptime - start) * 1000
+        Logger.log("Captured \(windows.count) window position(s) in \(Int(elapsed))ms")
     }
 }
 

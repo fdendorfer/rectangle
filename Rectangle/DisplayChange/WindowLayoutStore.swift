@@ -138,6 +138,10 @@ class WindowLayoutStore {
         layouts[signature] != nil
     }
 
+    func windowCount(for signature: String) -> Int {
+        layouts[signature]?.windows.count ?? 0
+    }
+
     // MARK: - Restore
 
     func matches(for signature: String, windows: [LiveWindow]) -> [(window: LiveWindow, frame: CGRect)] {
