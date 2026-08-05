@@ -17,7 +17,8 @@ set -euo pipefail
 
 readonly SOURCE_DOMAIN="com.knollsoft.Rectangle"
 readonly DEV_DOMAIN="com.knollsoft.Rectangle.dev"
-readonly APP_NAME="Rectangle Dev.app"
+readonly DISPLAY_NAME="Rectangle Dev"
+readonly APP_NAME="$DISPLAY_NAME.app"
 
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly PROJECT="$REPO_ROOT/Rectangle.xcodeproj"
@@ -86,13 +87,23 @@ xcodebuild \
 readonly BUILT_APP="$DERIVED_DATA/Build/Products/Release/Rectangle.app"
 [[ -d "$BUILT_APP" ]] || { echo "Build produced no app at $BUILT_APP" >&2; exit 1; }
 
-echo "==> Signing ad-hoc"
-codesign --force --deep --sign - "$BUILT_APP" 2>/dev/null
-
 echo "==> Installing to $APP_PATH"
 mkdir -p "$INSTALL_DIR"
 rm -rf "$APP_PATH"
 cp -R "$BUILT_APP" "$APP_PATH"
+
+# Renamed on the installed copy rather than through PRODUCT_NAME, which would
+# also rename the executable and the paths inside the bundle. The point is that
+# System Settings, Activity Monitor and the About panel say which build this is.
+echo "==> Naming it \"$DISPLAY_NAME\""
+readonly INFO_PLIST="$APP_PATH/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleName $DISPLAY_NAME" "$INFO_PLIST"
+/usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string $DISPLAY_NAME" "$INFO_PLIST" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $DISPLAY_NAME" "$INFO_PLIST"
+
+# Signed last: editing Info.plist invalidates any signature made before it.
+echo "==> Signing ad-hoc"
+codesign --force --deep --sign - "$APP_PATH" 2>/dev/null
 
 # --- Settings and shortcuts ---------------------------------------------------
 dev_domain_populated() {
