@@ -39,6 +39,16 @@ class NextPrevDisplayCalculation: WindowCalculation {
                 }
             }
             
+            // calculateRect re-maximizes based on Rectangle's own action
+            // history, which covers nothing that Rectangle didn't maximize
+            // itself, and nothing whose history was cleared by the window being
+            // moved. A window that currently fills its display was maximized by
+            // someone, and moving it shouldn't be what un-maximizes it.
+            if !Defaults.autoMaximize.userDisabled, params.windowFillsCurrentScreen {
+                let rectResult = WindowCalculationFactory.maximizeCalculation.calculateRect(rectParams)
+                return WindowCalculationResult(rect: rectResult.rect, screen: screen, resultingAction: .maximize)
+            }
+
             let rectResult = calculateRect(rectParams)
             let resultingAction: WindowAction = rectResult.resultingAction ?? params.action
             return WindowCalculationResult(rect: rectResult.rect, screen: screen, resultingAction: resultingAction)

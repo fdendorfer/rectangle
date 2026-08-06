@@ -34563,6 +34563,9 @@
     "Preserve maximize state when moving across displays" : {
 
     },
+    "Puts windows back where they were the last time this set of displays was connected, and keeps maximized windows maximized" : {
+
+    },
     "Press the shortcut repeatedly to cycle through all positions in the grid." : {
       "localizations" : {
         "ko" : {
@@ -37492,6 +37495,9 @@
           }
         }
       }
+    },
+    "Restore window positions when displays change" : {
+
     },
     "Resize adjacent windows when cycling side or corner shortcuts" : {
 

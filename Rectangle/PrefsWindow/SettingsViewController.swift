@@ -49,7 +49,8 @@ class SettingsViewController: NSViewController {
     private var combinedDisplayModeCheckbox: NSButton?
     private var greenButtonOverrideCheckbox: NSButton?
     private var autoMaximizeCheckbox: NSButton?
-    
+    private var displayChangeRestoreCheckbox: NSButton?
+
     @IBAction func toggleLaunchOnLogin(_ sender: NSButton) {
         let newSetting: Bool = sender.state == .on
         if #available(macOS 13, *) {
@@ -184,6 +185,17 @@ class SettingsViewController: NSViewController {
 
     @objc func toggleAutoMaximize(_ sender: NSButton) {
         Defaults.autoMaximize.enabled = sender.state == .on
+    }
+
+    @objc func toggleDisplayChangeRestore(_ sender: NSButton) {
+        // One checkbox for two defaults: remembering frames is what makes the
+        // re-apply pass able to tell which windows were maximized beforehand, so
+        // enabling one without the other only half works. The two terminal
+        // commands remain for anyone who wants them apart.
+        let newSetting = sender.state == .on
+        Defaults.restoreLayoutOnDisplayChange.enabled = newSetting
+        Defaults.reapplyActionOnDisplayChange.enabled = newSetting
+        Notification.Name.displayChangeRestore.post()
     }
 
     @IBAction func toggleTodoMode(_ sender: NSButton) {
@@ -1080,6 +1092,8 @@ class SettingsViewController: NSViewController {
 
         initializeAutoMaximizeCheckbox()
 
+        initializeDisplayChangeRestoreCheckbox()
+
         Notification.Name.configImported.onPost(using: {_ in
             self.initializeTodoModeSettings()
             self.initializeToggles()
@@ -1150,6 +1164,9 @@ class SettingsViewController: NSViewController {
         greenButtonOverrideCheckbox?.state = Defaults.greenButtonOverride.enabled ? .on : .off
 
         autoMaximizeCheckbox?.state = Defaults.autoMaximize.userDisabled ? .off : .on
+
+        displayChangeRestoreCheckbox?.state = Defaults.restoreLayoutOnDisplayChange.userEnabled
+            || Defaults.reapplyActionOnDisplayChange.userEnabled ? .on : .off
 
         if StageUtil.stageCapable {
             stageSlider.intValue = Int32(Defaults.stageSize.value)
@@ -1249,6 +1266,37 @@ class SettingsViewController: NSViewController {
 
             parentStack.insertArrangedSubview(checkbox, at: insertIdx + 1)
             autoMaximizeCheckbox = checkbox
+        }
+    }
+
+    private func initializeDisplayChangeRestoreCheckbox() {
+        // Inserted after the "preserve maximize across displays" checkbox, since
+        // both are about what happens to windows when displays change.
+        let anchor = autoMaximizeCheckbox ?? doubleClickTitleBarCheckbox
+        if displayChangeRestoreCheckbox == nil,
+           let parentStack = anchor?.superview as? NSStackView,
+           let anchor,
+           let insertIdx = parentStack.arrangedSubviews.firstIndex(of: anchor) {
+
+            let checkbox = NSButton(checkboxWithTitle: NSLocalizedString("Restore window positions when displays change", tableName: "Main", value: "", comment: ""), target: self, action: #selector(toggleDisplayChangeRestore(_:)))
+            checkbox.state = Defaults.restoreLayoutOnDisplayChange.userEnabled
+                || Defaults.reapplyActionOnDisplayChange.userEnabled ? .on : .off
+            checkbox.setContentCompressionResistancePriority(.required, for: .vertical)
+            checkbox.setContentHuggingPriority(.defaultHigh, for: .vertical)
+
+            // Must be set before inserting: NSStackView queries intrinsicContentSize once on
+            // insertion, so preferredMaxLayoutWidth=0 would give zero height permanently.
+            let descLabel = NSTextField(wrappingLabelWithString: NSLocalizedString("Puts windows back where they were the last time this set of displays was connected, and keeps maximized windows maximized", tableName: "Main", value: "", comment: ""))
+            descLabel.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+            descLabel.textColor = .secondaryLabelColor
+            descLabel.translatesAutoresizingMaskIntoConstraints = false
+            descLabel.preferredMaxLayoutWidth = 500
+            descLabel.setContentCompressionResistancePriority(.required, for: .vertical)
+            descLabel.setContentHuggingPriority(.defaultHigh, for: .vertical)
+
+            parentStack.insertArrangedSubview(checkbox, at: insertIdx + 1)
+            parentStack.insertArrangedSubview(descLabel, at: insertIdx + 2)
+            displayChangeRestoreCheckbox = checkbox
         }
     }
 
