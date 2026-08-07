@@ -38,6 +38,7 @@ The preferences window is purposefully slim, but there's a lot that can be modif
 - [Keep window size when moving a maximized window to another display](#keep-window-size-when-moving-a-maximized-window-to-another-display)
 - [Offset cycling position when overlapping another window](#offset-cycling-position-when-overlapping-another-window)
 - [Move windows that can't fill the snap area to the edge](#move-windows-that-cant-fill-the-snap-area-to-the-edge)
+- [Re-apply the last action when a display is connected or disconnected](#re-apply-the-last-action-when-a-display-is-connected-or-disconnected)
 
 ## Keyboard Shortcuts
 
@@ -571,4 +572,24 @@ Some windows can't be resized to fill a snap area — either because they're a f
 defaults write com.knollsoft.Rectangle moveFixedSizeToEdge -int 1  # align edges and corners (default)
 defaults write com.knollsoft.Rectangle moveFixedSizeToEdge -int 2  # align corners only, center halves/sides
 defaults write com.knollsoft.Rectangle moveFixedSizeToEdge -int 3  # center within the snap area
+```
+
+## Re-apply the last action when a display is connected or disconnected
+
+When a display goes away, macOS moves its windows onto the remaining displays by clamping their frames to whatever room is left. A window that was maximized comes back as an arbitrary rectangle, because "maximized" was only ever a frame, and there is no state for the OS to re-apply.
+
+With this enabled, Rectangle waits for the new display arrangement to settle and then re-runs the last action it performed on each window, on whichever display the window ended up on. A window that was maximized is maximized again, a left half is a left half again, and so on.
+
+```bash
+defaults write com.knollsoft.Rectangle reapplyActionOnDisplayChange -int 1
+```
+
+Only actions that are a pure function of the target screen are re-applied: maximize, almost maximize, maximize height, center, and the halves, thirds, fourths, sixths, eighths, ninths and corners. Actions that are relative to the window's current frame (make larger, move left) or to the set of displays (next display) are left alone, as are the multi-window actions (tile all, cascade all).
+
+This covers windows that Rectangle positioned in the current session, since that is the extent of what it knows about. Windows you positioned by hand, or that were already where you wanted them before Rectangle started, are left alone.
+
+Re-applying happens 1.5 seconds after the display arrangement stops changing, which is enough for most setups. If your displays take longer to settle, raise the delay (in milliseconds):
+
+```bash
+defaults write com.knollsoft.Rectangle displayChangeSettleDelay -int 3000
 ```
