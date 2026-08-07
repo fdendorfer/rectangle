@@ -227,12 +227,6 @@ class AccessibilityElement {
     static func deriveWindowId(fromElementHash hash: CFHashCode) -> CGWindowID {
         CGWindowID(0x8000_0000) | (CGWindowID(truncatingIfNeeded: hash) & 0x7FFF_FFFF)
     }
-
-    /// Derived ids only identify a window within the accessibility element that
-    /// produced them, so they can't be looked up through the window server.
-    static func isDerivedWindowId(_ windowId: CGWindowID) -> Bool {
-        windowId & 0x8000_0000 != 0
-    }
     
     var pid: pid_t? {
         wrappedElement.getPid()
