@@ -394,5 +394,5 @@ struct ExecutionParameters {
 }
 
 enum ExecutionSource {
-    case keyboardShortcut, dragToSnap, menuItem, url, titleBar
+    case keyboardShortcut, dragToSnap, menuItem, url, titleBar, displayChange
 }

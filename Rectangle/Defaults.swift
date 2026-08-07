@@ -104,6 +104,8 @@ class Defaults {
     static let screensOrderedByX = IntEnumDefault<ScreenOrdering>(key: "screensOrderedByX", defaultValue: .yThenMinX)
     static let combinedDisplayMode = OptionalBoolDefault(key: "combinedDisplayMode")
     static let greenButtonOverride = BoolDefault(key: "greenButtonOverride")
+    static let reapplyActionOnDisplayChange = OptionalBoolDefault(key: "reapplyActionOnDisplayChange")
+    static let displayChangeSettleDelay = IntDefault(key: "displayChangeSettleDelay", defaultValue: 1500)
     static var array: [Default] = [
         launchOnLogin,
         disabledApps,
@@ -198,7 +200,9 @@ class Defaults {
         cyclingOverlapMaxCascade,
         stackBadge,
         moveFixedSizeToEdge,
-        greenButtonOverride
+        greenButtonOverride,
+        reapplyActionOnDisplayChange,
+        displayChangeSettleDelay
     ]
 }
 
