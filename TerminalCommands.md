@@ -523,7 +523,7 @@ defaults write com.knollsoft.Rectangle screensOrderedByX -int 1
 
 ## Keep window size when moving a maximized window to another display
 
-By default, moving a maximized window to the next or previous display re-maximizes it to fill the destination display. Disable this to keep the window's size and center it on the destination display instead (so a window maximized on a smaller display won't grow to fill a larger one). This can also be toggled from Settings via the "Maximize window when moved to another display" checkbox.
+By default, moving a maximized window to the next or previous display re-maximizes it to fill the destination display. This applies whether Rectangle maximized the window or not: a window that fills its display's usable area is treated as maximized, so one you maximized with the green button survives the move too. The same goes for the commands that move a window to a specific display. Disable this to keep the window's size and center it on the destination display instead (so a window maximized on a smaller display won't grow to fill a larger one). This can also be toggled from Settings via the "Maximize window when moved to another display" checkbox.
 
 ```bash
 defaults write com.knollsoft.Rectangle autoMaximize -int 2
